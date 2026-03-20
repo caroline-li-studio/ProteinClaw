@@ -285,9 +285,13 @@
             if (data.GO.length === 0) {
                 document.getElementById('go_annotations').innerHTML = '<p class="text-muted">无 GO 注释</p>';
             } else {
-                let groups = { BP: [], MF: [], CC: [] };
+                let groups = { BP: [], MF: [], CC: [], Other: [] };
                 data.GO.forEach(go => {
-                    groups[go.category].push(go);
+                    if (groups[go.category]) {
+                        groups[go.category].push(go);
+                    } else {
+                        groups.Other.push(go);
+                    }
                 });
                 let ghtml = '';
                 for (let [cat, terms] of Object.entries(groups)) {
