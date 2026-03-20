@@ -255,51 +255,65 @@ class ProteinAnnotator:
         result = []
 
         if species == "human":
-            species_string = "homo_sapiens"
+            species_id = 9606
         elif species == "mouse":
-            species_string = "mus_musculus"
+            species_id = 10090
         else:
-            species_string = "homo_sapiens"
+            species_id = 9606
 
         try:
-            # 先映射到 STRING 格式
-            url = f"{self.string_base}/json/resolve?identifiers={uniprot_id}&species={species_string}"
+            # Step 1: resolve ID to get preferred name
+            url = f"{self.string_base}/json/resolve?identifiers={uniprot_id}&species={species_id}"
             resp = requests.get(url, timeout=10)
+            if resp.status_code != 200:
+                return result
+
+            resolve_data = resp.json()
+            if len(resolve_data) == 0:
+                return result
+
+            # Get the matched preferred name
+            query_name = resolve_data[0].get("preferredName", uniprot_id)
+
+            # Step 2: get network
+            url = f"{self.string_base}/json/network?identifiers={uniprot_id}&species={species_id}&limit={limit}"
+            resp = requests.get(url, timeout=15)
             if resp.status_code == 200:
-                data = resp.json()
-                if len(data) > 0:
-                    string_id = data[0]["stringId"]
+                interactions = resp.json()
 
-                    # 获取相互作用
-                    url2 = f"{self.string_base}/json/interactions?identifiers={string_id}&species={species_string}&limit={limit}"
-                    resp2 = requests.get(url2, timeout=15)
-                    if resp2.status_code == 200:
-                        interactions = resp2.json()
-                        for inter in interactions:
-                            # 获取对方蛋白
-                            if inter["stringIdA"] == string_id:
-                                partner_id = inter["stringIdB"]
-                            else:
-                                partner_id = inter["stringIdA"]
+                for inter in interactions:
+                    # STRING 返回的是两个蛋白
+                    protein1 = inter.get("preferredName_A", "")
+                    protein2 = inter.get("preferredName_B", "")
 
-                            # 解析出基因名（STRING ID 格式：9606.ENSP00000xxxx -> 需要反向映射）
-                            partner_name = partner_id.split(".")[-1] if "." in partner_id else partner_id
+                    if protein1 == query_name:
+                        partner_name = protein2
+                    elif protein2 == query_name:
+                        partner_name = protein1
+                    else:
+                        # 如果名字不匹配，用另一种方式：只要包含我们的蛋白就算
+                        continue
 
-                            score = inter["score"]
-                            # 判断证据类型
-                            has_experimental = inter.get("experimental_score", 0) > 0
-                            evidence_type = "experimental" if has_experimental else "predicted"
+                    score = inter.get("score", 0)
+                    # 判断证据类型 - experimental score is the evidence from experiments
+                    has_experimental = inter.get("escore", 0) > 0.1
+                    evidence_type = "experimental" if has_experimental else "predicted"
 
-                            result.append({
-                                "partner_string_id": partner_id,
-                                "partner": partner_name,
-                                "score": score,
-                                "evidence": evidence_type,
-                                "source": "STRING"
-                            })
+                    result.append({
+                        "partner": partner_name,
+                        "score": score,
+                        "evidence": evidence_type,
+                        "source": "STRING"
+                    })
 
-                        # 按分数排序
-                        result.sort(key=lambda x: x["score"], reverse=True)
+                # 按分数排序，去重
+                seen = set()
+                result = [x for x in result if not (x["partner"] in seen or seen.add(x["partner"]))]
+                result.sort(key=lambda x: x["score"], reverse=True)
+
+                # 限制数量
+                if len(result) > limit:
+                    result = result[:limit]
 
         except Exception as e:
             print(f"STRING interaction error: {e}")
