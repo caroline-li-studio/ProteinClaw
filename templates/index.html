@@ -285,17 +285,76 @@
             if (data.GO.length === 0) {
                 document.getElementById('go_annotations').innerHTML = '<p class="text-muted">无 GO 注释</p>';
             } else {
-                let groups = { BP: [], MF: [], CC: [], Other: [] };
-                data.GO.forEach(go => {
-                    if (groups[go.category]) {
-                        groups[go.category].push(go);
-                    } else {
-                        groups.Other.push(go);
-                    }
+                // 按证据分组：实验证据 vs 自动注释
+                let experimental = data.GO.filter(go => {
+                    const expCodes = ['EXP', 'IDA', 'IPI', 'IMP', 'IGI', 'IEP'];
+                    return expCodes.includes(go.evidence);
                 });
+                let automatic = data.GO.filter(go => {
+                    const expCodes = ['EXP', 'IDA', 'IPI', 'IMP', 'IGI', 'IEP'];
+                    return !expCodes.includes(go.evidence);
+                });
+
                 let ghtml = '';
-                for (let [cat, terms] of Object.entries(groups)) {
-                    if (terms.length > 0) {
+
+                if (experimental.length > 0) {
+                    ghtml += `<div class="mb-3"><h6>🔴 实验验证证据 (${experimental.length})</h6>`;
+                    let groups = { BP: [], MF: [], CC: [], Other: [] };
+                    experimental.forEach(go => {
+                        if (groups[go.category]) {
+                            groups[go.category].push(go);
+                        } else {
+                            groups.Other.push(go);
+                        }
+                    });
+                    for (let [cat, terms] of Object.entries(groups)) {
+                        if (terms.length > 0) {
+                            ghtml += `<strong>${cat} (${terms.length})</strong><div class="mb-3">`;
+                            terms.forEach(go => {
+                                let cls = `evidence-${go.evidence}`;
+                                ghtml += `<span class="badge ${cls} me-1 mb-1 d-inline-block">${go.id} ${go.name} <small>(${go.evidence})</small></span>`;
+                            });
+                            ghtml += `</div>`;
+                        }
+                    }
+                    ghtml += `</div>`;
+                }
+
+                if (automatic.length > 0) {
+                    const collapsed = experimental.length > 0 ? 'collapsed' : '';
+                    ghtml += `
+                    <div>
+                        <h6>🟡 自动注释 (IEA) - ${automatic.length} terms 
+                            <button class="btn btn-sm btn-outline-secondary ms-2" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#autoGo">
+                                ${experimental.length > 0 ? '展开' : '收起'}
+                            </button>
+                        </h6>
+                        <div id="autoGo" class="collapse ${experimental.length > 0 ? '' : 'show'}">
+                    `;
+
+                    let groups = { BP: [], MF: [], CC: [], Other: [] };
+                    automatic.forEach(go => {
+                        if (groups[go.category]) {
+                            groups[go.category].push(go);
+                        } else {
+                            groups.Other.push(go);
+                        }
+                    });
+                    for (let [cat, terms] of Object.entries(groups)) {
+                        if (terms.length > 0) {
+                            ghtml += `<strong>${cat} (${terms.length})</strong><div class="mb-3">`;
+                            terms.forEach(go => {
+                                let cls = `evidence-${go.evidence}`;
+                                ghtml += `<span class="badge ${cls} me-1 mb-1 d-inline-block">${go.id} ${go.name} <small>(${go.evidence})</small></span>`;
+                            });
+                            ghtml += `</div>`;
+                        }
+                    }
+                    ghtml += `</div></div>`;
+                }
+
+                document.getElementById('go_annotations').innerHTML = ghtml;
                         ghtml += `<h6>${cat} (${terms.length})</h6><div class="mb-3">`;
                         terms.forEach(go => {
                             let cls = `evidence-${go.evidence}`;
