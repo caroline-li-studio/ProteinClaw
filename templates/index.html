@@ -459,8 +459,11 @@
             }
 
             // 只取分数前 12 个画网络，太多会乱
+            // 确保 score 是数字，处理可能的字符串
             const topInteractions = data.interactions
+                .map(i => { i.score = Number(i.score); return i; })
                 .filter(i => i.score > 0.6)
+                .sort((a, b) => b.score - a.score)
                 .slice(0, 12);
 
             // 设置 STRING 链接
