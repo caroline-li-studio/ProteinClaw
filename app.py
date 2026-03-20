@@ -139,7 +139,13 @@ class ProteinAnnotator:
 
                 result["protein_name"] = data.get("proteinDescription", {}).get("recommendedName", {}).get("fullName", {}).get("value")
                 if "genes" in data and len(data["genes"]) > 0:
-                    result["gene_name"] = data["genes"][0]["geneName"]
+                    // geneName is actually an object with value field
+                    if "geneName" in data["genes"][0] and isinstance(data["genes"][0]["geneName"], dict):
+                        result["gene_name"] = data["genes"][0]["geneName"].get("value")
+                    } else if "geneName" in data["genes"][0]:
+                        result["gene_name"] = data["genes"][0]["geneName"]
+                    } else if "orderedLocusNames" in data["genes"][0] and len(data["genes"][0]["orderedLocusNames"]) > 0:
+                        result["gene_name"] = data["genes"][0]["orderedLocusNames"][0];
                 result["length"] = data.get("sequence", {}).get("length")
                 result["sequence"] = data.get("sequence", {}).get("value")
                 result["reviewed"] = data.get("reviewed", False)

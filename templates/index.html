@@ -488,7 +488,7 @@
             const g = svg.append('g');
 
             // 使用简单径向布局：中心一个点，其他环绕一圈
-            const centerName = data.query.normalized_gene_symbol || data.query.normalized_uniprot_id;
+            const centerName = data.basic_info.gene_name || data.query.normalized_gene_symbol || data.query.normalized_uniprot_id;
 
             // 画线：中心到每个其他节点
             const angleStep = 2 * Math.PI / topInteractions.length;
