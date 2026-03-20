@@ -141,8 +141,8 @@
                         <div class="section-content" id="interactions">
                         </div>
                         <div id="ppi_network_container" style="display: none; margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem;">
-                            <h6>相互作用网络可视化（高分 > 0.6，最多 12 个）
-                                <br><small class="text-muted">• 数据源: <a href="https://string-db.org/cgi/network?task=network&sessionId=bgEgV5fW0gB&id=${data.query.normalized_uniprot_id}&species=9606" target="_blank" rel="noopener">STRING: ${data.query.normalized_gene_symbol || data.query.normalized_uniprot_id}</a> • 实线 = experimental 证据 • 虚线 = predicted 预测 • 距离越近 = 关系越紧密 • 节点标签 = 基因名(分数)</small>
+                            <h6 id="ppi_ppi_header">相互作用网络可视化（高分 > 0.6，最多 12 个）
+                                <br><small class="text-muted" id="ppi_string_link"></small>
                             </h6>
                             <svg id="ppi_network" width="100%" height="400"></svg>
                         </div>
@@ -462,6 +462,13 @@
             const topInteractions = data.interactions
                 .filter(i => i.score > 0.6)
                 .slice(0, 12);
+
+            // 设置 STRING 链接
+            const geneSymbol = data.query.normalized_gene_symbol || data.query.normalized_uniprot_id;
+            const uniprotId = data.query.normalized_uniprot_id;
+            const species = data.query.taxon === "human" ? "9606" : "10090";
+            const stringUrl = `https://string-db.org/cgi/network?task=network&id=${uniprotId}&species=${species}`;
+            document.getElementById('ppi_string_link').innerHTML = `• 数据源: <a href="${stringUrl}" target="_blank" rel="noopener">STRING: ${geneSymbol}</a> • 实线 = experimental 证据 • 虚线 = predicted 预测 • 距离越近 = 关系越紧密 • 节点标签 = 基因名(分数)`;
 
             if (topInteractions.length === 0) {
                 document.getElementById('ppi_network_container').style.display = 'none';
