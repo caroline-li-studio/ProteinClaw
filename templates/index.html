@@ -456,140 +456,104 @@
                 return;
             }
 
-            // 只取分数前 15 个画网络，太多会乱
+            // 只取分数前 12 个画网络，太多会乱
             const topInteractions = data.interactions
                 .filter(i => i.score > 0.6)
-                .slice(0, 15);
+                .slice(0, 12);
 
             if (topInteractions.length === 0) {
                 document.getElementById('ppi_network_container').style.display = 'none';
                 return;
             }
 
-            // 构建图数据
-            const nodes = [];
-            const links = [];
-
-            // 加上查询蛋白作为中心节点
-            const centerName = data.query.normalized_gene_symbol || data.query.normalized_uniprot_id;
-            nodes.push({id: centerName, group: 1, score: 1.0});
-
-            // 使用 nodeSet 去重
-            const nodeSet = new Set([centerName]);
-
-            topInteractions.forEach((interaction) => {
-                const partnerId = interaction.partner;
-                if (!nodeSet.has(partnerId)) {
-                    nodeSet.add(partnerId);
-                    nodes.push({
-                        id: partnerId,
-                        group: interaction.score > 0.8 ? 2 : 3,
-                        score: interaction.score
-                    });
-                }
-                links.push({
-                    source: centerName,
-                    target: partnerId,
-                    value: interaction.score
-                });
-            });
-
-            // Get correct width - if container width is 0, fallback to window width
+            // 显示 container
             const container = document.getElementById('ppi_network_container');
             container.style.display = 'block';
+
+            // 计算画布大小
             let width = container.clientWidth - 30;
             if (width <= 0) {
                 width = window.innerWidth - 60;
             }
-            const height = 400;
-            console.log('PPI network size:', width, height);
-
-            console.log('PPI network size:', width, height);
+            const height = 350;
+            const cx = width / 2;
+            const cy = height / 2;
+            const radius = Math.min(width, height) / 2 - 40;
 
             d3.select('#ppi_network').selectAll("*").remove();
-
             const svg = d3.select('#ppi_network')
                 .attr('width', width)
                 .attr('height', height);
 
-            // Add a bit of margin
-            const g = svg.append('g').attr('transform', 'translate(0, 0)');
+            const g = svg.append('g');
 
-            const link = g.append('g')
-                .selectAll('line')
-                .data(links)
-                .enter().append('line')
-                .attr('stroke', '#999')
-                .attr('stroke-opacity', 0.6)
-                .attr('stroke-width', d => Math.max(1, Math.sqrt(d.value * 3)));
+            // 使用简单径向布局：中心一个点，其他环绕一圈
+            const centerName = data.query.normalized_gene_symbol || data.query.normalized_uniprot_id;
 
-            const node = g.append('g')
-                .selectAll('circle')
-                .data(nodes)
-                .enter().append('circle')
-                .attr('r', d => d.group === 1 ? 15 : 8 + d.score * 10)
-                .attr('fill', d => {
-                    if (d.group === 1) return '#ff4444';
-                    if (d.group === 2) return '#00C851';
-                    return '#33b5e5';
-                })
-                .style('stroke', '#fff')
-                .style('stroke-width', 1.5)
-                .call(d3.drag()
-                    .on('start', dragstarted)
-                    .on('drag', dragged)
-                    .on('end', dragended));
+            // 画线：中心到每个其他节点
+            const angleStep = 2 * Math.PI / topInteractions.length;
 
-            const labels = g.append('g')
-                .selectAll('text')
-                .data(nodes)
-                .enter().append('text')
-                .attr('font-size', d => d.group === 1 ? 12 : 10)
-                .attr('dx', d => (d.group === 1 ? 18 : 10))
-                .attr('dy', '.35em')
-                .style('fill', '#333')
-                .text(d => d.id);
+            topInteractions.forEach((interaction, i) => {
+                const angle = i * angleStep;
+                const x = cx + Math.cos(angle) * radius;
+                const y = cy + Math.sin(angle) * radius;
 
-            // Adjust force parameters for better layout
-            // Add collision detection to avoid overlapping
-            const simulation = d3.forceSimulation(nodes)
-                .force('link', d3.forceLink(links).id(d => d.id).distance(80))
-                .force('charge', d3.forceManyBody().strength(-1200))
-                .force('center', d3.forceCenter(width / 2, height / 2))
-                .force('collision', d3.forceCollide().radius(d => d.group === 1 ? 25 : 15));
-
-            simulation.on('tick', () => {
-                link
-                    .attr('x1', d => d.source.x)
-                    .attr('y1', d => d.source.y)
-                    .attr('x2', d => d.target.x)
-                    .attr('y2', d => d.target.y);
-
-                node
-                    .attr('cx', d => d.x)
-                    .attr('cy', d => d.y);
-
-                labels
-                    .attr('x', d => d.x)
-                    .attr('y', d => d.y);
+                // 画线
+                g.append('line')
+                    .attr('x1', cx)
+                    .attr('y1', cy)
+                    .attr('x2', x)
+                    .attr('y2', y)
+                    .attr('stroke', '#999')
+                    .attr('stroke-opacity', 0.6)
+                    .attr('stroke-width', interaction.score > 0.8 ? 3 : 2);
             });
 
-            function dragstarted(event, d) {
-                if (!event.active) simulation.alphaTarget(0.3).restart();
-                d.fx = d.x;
-                d.fy = d.y;
-            }
+            // 画周围节点
+            topInteractions.forEach((interaction, i) => {
+                const angle = i * angleStep;
+                const x = cx + Math.cos(angle) * radius;
+                const y = cy + Math.sin(angle) * radius;
+                const r = interaction.score > 0.8 ? 12 : 9;
+                const color = interaction.score > 0.8 ? '#00C851' : '#33b5e5';
 
-            function dragged(event, d) {
-                d.fx = event.x;
-                d.fy = event.y;
-            }
+                g.append('circle')
+                    .attr('cx', x)
+                    .attr('cy', y)
+                    .attr('r', r)
+                    .attr('fill', color)
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 2);
 
-            function dragended(event, d) {
-                if (!event.active) simulation.alphaTarget(0);
-                d.fx = null;
-                d.fy = null;
-            }
+                // 标签放在节点外面一点
+                const labelX = cx + Math.cos(angle) * (radius + 18);
+                const labelY = cy + Math.sin(angle) * (radius + 18);
+                g.append('text')
+                    .attr('x', labelX)
+                    .attr('y', labelY)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-size', 10)
+                    .style('fill', '#333')
+                    .text(interaction.partner);
+            });
+
+            // 画中心节点
+            g.append('circle')
+                .attr('cx', cx)
+                .attr('cy', cy)
+                .attr('r', 22)
+                .attr('fill', '#ff4444')
+                .attr('stroke', '#fff')
+                .attr('stroke-width', 3);
+
+            g.append('text')
+                .attr('x', cx)
+                .attr('y', cy + 4)
+                .attr('text-anchor', 'middle')
+                .attr('font-size', 12)
+                .attr('font-weight', 'bold')
+                .style('fill', 'white')
+                .text(centerName);
         }
 
         function copyJson() {
