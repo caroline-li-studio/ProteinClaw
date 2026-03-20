@@ -467,7 +467,7 @@
             const geneSymbol = data.query.normalized_gene_symbol || data.query.normalized_uniprot_id;
             const uniprotId = data.query.normalized_uniprot_id;
             const species = data.query.taxon === "human" ? "9606" : "10090";
-            const stringUrl = `https://string-db.org/cgi/network?task=network&id=${uniprotId}&species=${species}`;
+            const stringUrl = `https://string-db.org/cgi/network?identifiers=${uniprotId}&species=${species}`;
             document.getElementById('ppi_string_link').innerHTML = `• 数据源: <a href="${stringUrl}" target="_blank" rel="noopener">STRING: ${geneSymbol}</a> • 实线 = experimental 证据 • 虚线 = predicted 预测 • 距离越近 = 关系越紧密 • 节点标签 = 基因名(分数)`;
 
             if (topInteractions.length === 0) {
