@@ -58,48 +58,34 @@ class ProteinAnnotator:
         if input_type == "uniprot":
             return self._fetch_uniprot_mapping(input_id, result)
 
-        # 使用 MyGene.info 进行 ID 映射
+        # 使用 UniProt search 直接搜索基因名
         try:
             if species == "human":
-                species_id = 9606
+                taxon_id = "9606"
             elif species == "mouse":
-                species_id = 10090
+                taxon_id = "10090"
             else:
-                species_id = 9606
+                taxon_id = "9606"
 
-            if input_type == "ensembl":
-                url = f"{self.mygeneinfo_base}/gene/{input_id}?fields=uniprot,symbol"
-            else:  # gene_symbol
-                url = f"{self.mygeneinfo_base}/query?q={input_id}%20AND%20species:{species_id}&fields=uniprot,symbol,ensembl.gene&size=1"
-
+            # 简化查询：只搜索输入内容
+            url = f"https://rest.uniprot.org/uniprotkb/search?query={input_id}&format=json&size=5"
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
-                if input_type != "ensembl" and "hits" in data and len(data["hits"]) > 0:
-                    hit = data["hits"][0]
-                elif input_type == "ensembl" and "uniprot" in data:
-                    hit = data
-                else:
-                    return result
-
-                # 提取 uniprot id
-                if "uniprot" in hit:
-                    if isinstance(hit["uniprot"], list) and len(hit["uniprot"]) > 0:
-                        result["uniprot_id"] = hit["uniprot"][0]
-                    elif isinstance(hit["uniprot"], str):
-                        result["uniprot_id"] = hit["uniprot"]
-
-                if "symbol" in hit:
-                    result["gene_symbol"] = hit["symbol"]
-                if "ensembl" in hit and "gene" in hit["ensembl"]:
-                    result["ensembl_id"] = hit["ensembl"]["gene"]
-
-                # 如果得到了 UniProt ID，再去获取完整信息
-                if result["uniprot_id"]:
-                    return self._fetch_uniprot_mapping(result["uniprot_id"], result)
+                if "results" in data and len(data["results"]) > 0:
+                    # 找到匹配物种的第一个结果
+                    for first_result in data["results"]:
+                        if str(first_result.get("taxonomy", {}).get("taxonId", "")) == taxon_id:
+                            uniprot_id = first_result["primaryAccession"]
+                            # 找到 UniProt 后再获取详细映射
+                            return self._fetch_uniprot_mapping(uniprot_id, result)
+                    # 如果没找到对应物种，取第一个结果
+                    first_result = data["results"][0]
+                    uniprot_id = first_result["primaryAccession"]
+                    return self._fetch_uniprot_mapping(uniprot_id, result)
 
         except Exception as e:
-            print(f"ID mapping error: {e}")
+            print(f"ID mapping search error: {e}")
 
         return result
 
@@ -202,7 +188,7 @@ class ProteinAnnotator:
                 data = resp.json()
 
                 if "uniProtKBCrossReferences" in data:
-                    for ref in data["uniProtKBCrossReferences":
+                    for ref in data["uniProtKBCrossReferences"]:
                         if ref["database"] == "GO":
                             go_id = ref["id"]
                             properties = {p["key"]: p["value"] for p in ref["properties"]}
