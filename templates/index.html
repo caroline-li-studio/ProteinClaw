@@ -141,7 +141,7 @@
                         <div class="section-content" id="interactions">
                         </div>
                         <div id="ppi_network_container" style="display: none; margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem;">
-                            <h6>相互作用网络可视化</h6>
+                            <h6>相互作用网络可视化（高分 > 0.6，最多 15 个）</h6>
                             <svg id="ppi_network" width="100%" height="400"></svg>
                         </div>
                     </div>
@@ -438,6 +438,18 @@
             renderPPINetwork(data);
         }
 
+        function toggleAutoGo() {
+            const div = document.getElementById('autoGo');
+            const buttonText = document.getElementById('autoGoButtonText');
+            if (div.style.display === 'none') {
+                div.style.display = 'block';
+                buttonText.textContent = '收起';
+            } else {
+                div.style.display = 'none';
+                buttonText.textContent = '展开';
+            }
+        }
+
         function renderPPINetwork(data) {
             if (!data.interactions || data.interactions.length === 0) {
                 document.getElementById('ppi_network_container').style.display = 'none';
@@ -454,8 +466,6 @@
                 return;
             }
 
-            document.getElementById('ppi_network_container').style.display = 'block';
-
             // 构建图数据
             const nodes = [];
             const links = [];
@@ -467,7 +477,7 @@
             // 使用 nodeSet 去重
             const nodeSet = new Set([centerName]);
 
-            topInteractions.forEach((interaction, idx) => {
+            topInteractions.forEach((interaction) => {
                 const partnerId = interaction.partner;
                 if (!nodeSet.has(partnerId)) {
                     nodeSet.add(partnerId);
@@ -484,7 +494,6 @@
                 });
             });
 
-            // D3 force simulation
             // Get correct width after container is shown
             const container = document.getElementById('ppi_network_container');
             container.style.display = 'block';
@@ -496,22 +505,6 @@
             const svg = d3.select('#ppi_network')
                 .attr('width', width)
                 .attr('height', height);
-
-            const g = svg.append('g');
-
-            // Adjust force parameters for better layout
-            const simulation = d3.forceSimulation(nodes)
-                .force('link', d3.forceLink(links).id(d => d.id).distance(d => Math.max(60, 120 - d.value * 80)))
-                .force('charge', d3.forceManyBody().strength(-800))
-                .force('center', d3.forceCenter(width / 2, height / 2));
-
-            const link = g.append('g')
-                .selectAll('line')
-                .data(links)
-                .enter().append('line')
-                .attr('stroke', '#999')
-                .attr('stroke-opacity', 0.6)
-                .attr('stroke-width', d => Math.sqrt(d.value * 3));
 
             // Add a bit of margin
             const g = svg.append('g').attr('transform', 'translate(0, 0)');
@@ -551,6 +544,12 @@
                 .style('fill', '#333')
                 .text(d => d.id);
 
+            // Adjust force parameters for better layout
+            const simulation = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink(links).id(d => d.id).distance(d => Math.max(60, 120 - d.value * 80)))
+                .force('charge', d3.forceManyBody().strength(-800))
+                .force('center', d3.forceCenter(width / 2, height / 2));
+
             simulation.on('tick', () => {
                 link
                     .attr('x1', d => d.source.x)
@@ -582,18 +581,6 @@
                 if (!event.active) simulation.alphaTarget(0);
                 d.fx = null;
                 d.fy = null;
-            }
-        }
-
-        function toggleAutoGo() {
-            const div = document.getElementById('autoGo');
-            const buttonText = document.getElementById('autoGoButtonText');
-            if (div.style.display === 'none') {
-                div.style.display = 'block';
-                buttonText.textContent = '收起';
-            } else {
-                div.style.display = 'none';
-                buttonText.textContent = '展开';
             }
         }
 
