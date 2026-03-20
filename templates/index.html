@@ -356,7 +356,6 @@
                 }
 
                 document.getElementById('go_annotations').innerHTML = ghtml;
-                        ghtml += `<h6>${cat} (${terms.length})</h6><div class="mb-3">`;
                         terms.forEach(go => {
                             let cls = `evidence-${go.evidence}`;
                             ghtml += `<span class="badge ${cls} me-1 mb-1 d-inline-block">${go.id} ${go.name} <small>(${go.evidence})</small></span>`;
