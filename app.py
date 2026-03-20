@@ -100,7 +100,13 @@ class ProteinAnnotator:
 
                 # 提取基因名
                 if "genes" in data and len(data["genes"]) > 0:
-                    result["gene_symbol"] = data["genes"][0]["geneName"]
+                    # geneName is actually an object {value: "TREM2"}
+                    if "geneName" in data["genes"][0] and isinstance(data["genes"][0]["geneName"], dict):
+                        result["gene_symbol"] = data["genes"][0]["geneName"].get("value")
+                    elif "geneName" in data["genes"][0]:
+                        result["gene_symbol"] = data["genes"][0]["geneName"]
+                    elif "orderedLocusNames" in data["genes"][0] and len(data["genes"][0]["orderedLocusNames"]) > 0:
+                        result["gene_symbol"] = data["genes"][0]["orderedLocusNames"][0]
 
                 # 提取 Ensembl ID
                 if "dbReferences" in data:

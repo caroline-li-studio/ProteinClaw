@@ -141,7 +141,9 @@
                         <div class="section-content" id="interactions">
                         </div>
                         <div id="ppi_network_container" style="display: none; margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem;">
-                            <h6>相互作用网络可视化（高分 > 0.6，最多 15 个）</h6>
+                            <h6>相互作用网络可视化（高分 > 0.6，最多 12 个）
+                                <br><small class="text-muted">• 数据源: <a href="https://string-db.org" target="_blank" rel="noopener">STRING</a> • 实线 = experimental 证据 • 虚线 = predicted 预测 • 节点大小 = 置信度分数</small>
+                            </h6>
                             <svg id="ppi_network" width="100%" height="400"></svg>
                         </div>
                     </div>
@@ -498,14 +500,17 @@
                 const x = cx + Math.cos(angle) * radius;
                 const y = cy + Math.sin(angle) * radius;
 
-                // 画线
+                // 画线: experimental 实线深绿，predicted 虚线灰色
+                let strokeColor = interaction.evidence === 'experimental' ? '#2E7D32' : '#999';
+                let strokeDash = interaction.evidence === 'experimental' ? [] : [5, 3];
                 g.append('line')
                     .attr('x1', cx)
                     .attr('y1', cy)
                     .attr('x2', x)
                     .attr('y2', y)
-                    .attr('stroke', '#999')
-                    .attr('stroke-opacity', 0.6)
+                    .attr('stroke', strokeColor)
+                    .attr('stroke-opacity', interaction.score > 0.6 ? 0.8 : 0.5)
+                    .attr('stroke-dasharray', strokeDash)
                     .attr('stroke-width', interaction.score > 0.8 ? 3 : 2);
             });
 
@@ -534,7 +539,7 @@
                     .attr('text-anchor', 'middle')
                     .attr('font-size', 10)
                     .style('fill', '#333')
-                    .text(interaction.partner);
+                    .text(`${interaction.partner} (${interaction.score.toFixed(2)})`);
             });
 
             // 画中心节点
