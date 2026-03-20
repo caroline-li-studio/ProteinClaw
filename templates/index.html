@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProteinClaw - 蛋白质注释整合工具</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            min-height: 100vh;
+        }
+        .proteinclaw-header {
+            background: linear-gradient(135deg, #1a5f7a 0%, #2c3e50 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .result-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+        .section-title {
+            background: #f1f3f5;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+            margin: 0;
+        }
+        .section-content {
+            padding: 1rem;
+        }
+        .evidence-EXP { background-color: #d4edda; }
+        .evidence-IDA { background-color: #d1ecf1; }
+        .evidence-IEA { background-color: #f8f9fa; color: #6c757d; }
+        .json-output {
+            background: #f8f9fa;
+            border-radius: 5px;
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+            max-height: 500px;
+            overflow: auto;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 2rem;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        .badge-source {
+            font-size: 0.7rem;
+        }
+        .score-high { color: #198754; font-weight: bold; }
+        .score-medium { color: #fd7e14; }
+        .score-low { color: #6c757d; }
+    </style>
+</head>
+<body>
+    <div class="proteinclaw-header">
+        <div class="container">
+            <h1>🧬 ProteinClaw</h1>
+            <p class="lead mb-0">把"一个蛋白的所有已知注释"系统化取回并结构化输出</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-12">
+                <!-- 输入区 -->
+                <div class="result-card">
+                    <div class="section-title">查询</div>
+                    <div class="section-content">
+                        <form id="queryForm" onsubmit="event.preventDefault(); submitQuery();">
+                            <div class="row">
+                                <div class="col-md-8 mb-3">
+                                    <label for="input_id" class="form-label">蛋白质 ID</label>
+                                    <input type="text" class="form-control" id="input_id" placeholder="例如: Q9H3U1 或 SMOC1 或 ENSG00000123456" required>
+                                    <div class="form-text">支持 UniProt Accession、Gene symbol、Ensembl ID</div>
+                                </div>
+                                <div class="col-md-4 mb-3">
+                                    <label for="species" class="form-label">物种</label>
+                                    <select class="form-select" id="species">
+                                        <option value="human" selected>Human</option>
+                                        <option value="mouse">Mouse</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">开始注释</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- 加载区 -->
+                <div id="loading" class="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3 text-muted">正在从多个数据库获取数据，请稍候...</p>
+                </div>
+
+                <!-- 结果区 -->
+                <div id="results" style="display: none;">
+                    <!-- 基本信息 -->
+                    <div class="result-card">
+                        <h5 class="section-title">📋 基本信息</h5>
+                        <div class="section-content" id="basic_info">
+                        </div>
+                    </div>
+
+                    <!-- 查询信息 -->
+                    <div class="result-card">
+                        <h5 class="section-title">🔍 查询信息</h5>
+                        <div class="section-content" id="query_info">
+                        </div>
+                    </div>
+
+                    <!-- GO 注释 -->
+                    <div class="result-card">
+                        <h5 class="section-title">🧠 GO 注释</h5>
+                        <div class="section-content" id="go_annotations">
+                        </div>
+                    </div>
+
+                    <!-- Pathway -->
+                    <div class="result-card">
+                        <h5 class="section-title">🧬 Pathway</h5>
+                        <div class="section-content" id="pathways">
+                        </div>
+                    </div>
+
+                    <!-- 相互作用 -->
+                    <div class="result-card">
+                        <h5 class="section-title">🔗 蛋白质相互作用 (STRING)</h5>
+                        <div class="section-content" id="interactions">
+                        </div>
+                    </div>
+
+                    <!-- 结构域 -->
+                    <div class="result-card">
+                        <h5 class="section-title">🧩 结构域</h5>
+                        <div class="section-content" id="domains">
+                        </div>
+                    </div>
+
+                    <!-- 疾病 -->
+                    <div class="result-card">
+                        <h5 class="section-title">🩺 疾病关联</h5>
+                        <div class="section-content" id="diseases">
+                        </div>
+                    </div>
+
+                    <!-- 变异 -->
+                    <div class="result-card">
+                        <h5 class="section-title">🧬 变异信息</h5>
+                        <div class="section-content" id="variants">
+                        </div>
+                    </div>
+
+                    <!-- 结构 -->
+                    <div class="result-card">
+                        <h5 class="section-title">🏗️ 结构信息</h5>
+                        <div class="section-content" id="structure">
+                        </div>
+                    </div>
+
+                    <!-- 完整 JSON -->
+                    <div class="result-card">
+                        <h5 class="section-title">📄 完整 JSON 输出</h5>
+                        <div class="section-content">
+                            <div id="json_output" class="json-output"></div>
+                            <button class="btn btn-sm btn-outline-secondary mt-2" onclick="copyJson()">复制 JSON</button>
+                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="downloadJson()">下载 JSON</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 错误提示 -->
+                <div id="error_card" class="result-card" style="display: none;">
+                    <div class="section-title bg-danger text-white">错误</div>
+                    <div class="section-content">
+                        <div id="error_message"></div>
+                    </div>
+                </div>
+
+                <!-- 说明 -->
+                <div class="result-card mt-4">
+                    <div class="section-title">关于 ProteinClaw</div>
+                    <div class="section-content">
+                        <ul>
+                            <li><strong>设计原则：</strong>每条信息必须带来源，每条信息最好带证据等级</li>
+                            <li><strong>数据源：</strong>UniProt、Gene Ontology、KEGG、Reactome、STRING、Pfam、ClinVar、AlphaFold</li>
+                            <li><strong>输出：</strong>统一结构化 JSON，可以直接用于下游分析</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentResult = null;
+
+        async function submitQuery() {
+            const input_id = document.getElementById('input_id').value.trim();
+            const species = document.getElementById('species').value;
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('error_card').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/annotate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ input_id, species })
+                });
+
+                const data = await response.json();
+                currentResult = data;
+
+                document.getElementById('loading').style.display = 'none';
+
+                if (!data.success) {
+                    document.getElementById('error_card').style.display = 'block';
+                    document.getElementById('error_message').textContent = data.error;
+                    return;
+                }
+
+                document.getElementById('results').style.display = 'block';
+                renderResults(data);
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error_card').style.display = 'block';
+                document.getElementById('error_message').textContent = '网络错误: ' + error.message;
+            }
+        }
+
+        function renderResults(data) {
+            // 查询信息
+            let qhtml = `
+                <table class="table table-sm">
+                    <tr><td>输入</td><td><strong>${data.query.input}</strong></td></tr>
+                    <tr><td>输入类型</td><td>${data.query.input_type}</td></tr>
+                    <tr><td>标准化 UniProt ID</td><td><strong>${data.query.normalized_uniprot_id}</strong></td></tr>
+                    <tr><td>标准化 Gene symbol</td><td>${data.query.normalized_gene_symbol || '-'}</td></tr>
+                    <tr><td>物种</td><td>${data.query.species}</td></tr>
+                </table>
+            `;
+            document.getElementById('query_info').innerHTML = qhtml;
+
+            // 基本信息
+            let bhtml = `
+                <table class="table table-sm">
+                    <tr><td>蛋白名称</td><td>${data.basic_info.protein_name || '-'}</td></tr>
+                    <tr><td>基因名称</td><td>${data.basic_info.gene_name || '-'}</td></tr>
+                    <tr><td>长度</td><td>${data.basic_info.length || '-'} aa</td></tr>
+                    <tr><td> reviewed </td><td>${data.basic_info.reviewed ? '✅ Swiss-Prot' : '⚠️ TrEMBL (unreviewed)'}</td></tr>
+                    <tr><td>功能</td><td>${data.basic_info.function || '-'}</td></tr>
+                    <tr><td>亚细胞定位</td><td>
+                        ${data.basic_info.subcellular_location.map(l => `<span class="badge bg-secondary">${l.value}</span>`).join(' ')}
+                    </td></tr>
+                    <tr><td>关键词</td><td>
+                        ${data.basic_info.keywords.map(k => `<span class="badge bg-info text-dark">${k}</span>`).join(' ')}
+                    </td></tr>
+                </table>
+            `;
+            document.getElementById('basic_info').innerHTML = bhtml;
+
+            // GO 注释
+            if (data.GO.length === 0) {
+                document.getElementById('go_annotations').innerHTML = '<p class="text-muted">无 GO 注释</p>';
+            } else {
+                let groups = { BP: [], MF: [], CC: [] };
+                data.GO.forEach(go => {
+                    groups[go.category].push(go);
+                });
+                let ghtml = '';
+                for (let [cat, terms] of Object.entries(groups)) {
+                    if (terms.length > 0) {
+                        ghtml += `<h6>${cat} (${terms.length})</h6><div class="mb-3">`;
+                        terms.forEach(go => {
+                            let cls = `evidence-${go.evidence}`;
+                            ghtml += `<span class="badge ${cls} me-1 mb-1 d-inline-block">${go.id} ${go.name} <small>(${go.evidence})</small></span>`;
+                        });
+                        ghtml += `</div>`;
+                    }
+                }
+                document.getElementById('go_annotations').innerHTML = ghtml;
+            }
+
+            // Pathway
+            if (data.pathways.length === 0) {
+                document.getElementById('pathways').innerHTML = '<p class="text-muted">无通路注释</p>';
+            } else {
+                let phtml = `<ul class="list-group">`;
+                data.pathways.forEach(p => {
+                    phtml += `<li class="list-group-item"><span class="badge-source badge bg-${p.source === 'KEGG' ? 'primary' : 'success'}">${p.source}</span> ${p.name} <code class="ms-2">${p.id}</code></li>`;
+                });
+                phtml += `</ul>`;
+                document.getElementById('pathways').innerHTML = phtml;
+            }
+
+            // Interactions
+            if (data.interactions.length === 0) {
+                document.getElementById('interactions').innerHTML = '<p class="text-muted">无相互作用数据</p>';
+            } else {
+                let ihtml = `<div class="table-responsive"><table class="table table-sm table-hover"><thead><tr><th>Partner</th><th>Score</th><th>Evidence</th><th>Source</th></tr></thead><tbody>`;
+                data.interactions.slice(0, 20).forEach(i => {
+                    let scoreClass = i.score > 0.7 ? 'score-high' : i.score > 0.4 ? 'score-medium' : 'score-low';
+                    ihtml += `<tr><td><strong>${i.partner}</strong></td><td class="${scoreClass}">${i.score.toFixed(3)}</td><td>${i.evidence}</td><td>${i.source}</td></tr>`;
+                });
+                ihtml += `</tbody></table>${data.interactions.length > 20 ? `<p class="text-muted small">显示前 20 条，共 ${data.interactions.length} 条</p>` : ''}</div>`;
+                document.getElementById('interactions').innerHTML = ihtml;
+            }
+
+            // Domains
+            if (data.domains.length === 0) {
+                document.getElementById('domains').innerHTML = '<p class="text-muted">无结构域注释</p>';
+            } else {
+                let dhtml = `<ul class="list-group">`;
+                data.domains.forEach(d => {
+                    let range = d.start && d.end ? `${d.start}-${d.end} aa` : '';
+                    dhtml += `<li class="list-group-item"><span class="badge-source badge bg-info">${d.source}</span> ${d.name} ${range}</li>`;
+                });
+                dhtml += `</ul>`;
+                document.getElementById('domains').innerHTML = dhtml;
+            }
+
+            // Diseases
+            if (data.disease.length === 0) {
+                document.getElementById('diseases').innerHTML = '<p class="text-muted">无疾病关联</p>';
+            } else {
+                let dhtml = `<ul>`;
+                data.disease.forEach(d => {
+                    dhtml += `<li>${d.name} <span class="badge bg-light text-dark">${d.evidence}</span> <span class="badge-source badge bg-secondary">${d.source}</span></li>`;
+                });
+                dhtml += `</ul>`;
+                document.getElementById('diseases').innerHTML = dhtml;
+            }
+
+            // Variants
+            if (data.variants.length === 0) {
+                document.getElementById('variants').innerHTML = '<p class="text-muted">无变异信息</p>';
+            } else {
+                let vhtml = `<div class="table-responsive"><table class="table table-sm"><thead><tr><th>Position</th><th>Type</th><th>Description</th><th>Pathogenicity</th></tr></thead><tbody>`;
+                data.variants.slice(0, 20).forEach(v => {
+                    vhtml += `<tr><td>${v.position || '-'}</td><td>${v.type || '-'}</td><td>${v.description || '-'}</td><td>${v.pathogenicity || '-'}</td></tr>`;
+                });
+                vhtml += `</tbody></table>${data.variants.length > 20 ? `<p class="text-muted small">显示前 20 条，共 ${data.variants.length} 条</p>` : ''}</div>`;
+                document.getElementById('variants').innerHTML = vhtml;
+            }
+
+            // Structure
+            let sh = data.structure;
+            let shtml = `
+                <table class="table table-sm">
+                    <tr><td>实验结构 (PDB)</td><td>${sh.has_experimental_structure ? '✅ Yes: ' + sh.pdb_ids.join(', ') : '❌ No'}</td></tr>
+                    <tr><td>AlphaFold 预测</td><td>${sh.has_alphafold_prediction ? '✅ Available' : '❌ No'}</td></tr>
+                    ${sh.alphafold_url ? `<tr><td>AlphaFold 链接</td><td><a href="${sh.alphafold_url}" target="_blank">${sh.alphafold_url}</a></td></tr>` : ''}
+                </table>
+            `;
+            document.getElementById('structure').innerHTML = shtml;
+
+            // JSON output
+            document.getElementById('json_output').textContent = JSON.stringify(data, null, 2);
+        }
+
+        function copyJson() {
+            if (!currentResult) return;
+            navigator.clipboard.writeText(JSON.stringify(currentResult, null, 2));
+            alert('JSON 已复制到剪贴板');
+        }
+
+        function downloadJson() {
+            if (!currentResult) return;
+            const blob = new Blob([JSON.stringify(currentResult, null, 2)], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentResult.query.normalized_uniprot_id || 'protein'}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
