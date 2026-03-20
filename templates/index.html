@@ -140,6 +140,10 @@
                         <h5 class="section-title">🔗 蛋白质相互作用 (STRING)</h5>
                         <div class="section-content" id="interactions">
                         </div>
+                        <div id="ppi_network_container" style="display: none; margin-top: 1rem; border-top: 1px solid #eee; padding-top: 1rem;">
+                            <h6>相互作用网络可视化</h6>
+                            <svg id="ppi_network" width="100%" height="400"></svg>
+                        </div>
                     </div>
 
                     <!-- 结构域 -->
@@ -205,6 +209,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
     <script>
         let currentResult = null;
 
@@ -373,6 +378,131 @@
 
             // JSON output
             document.getElementById('json_output').textContent = JSON.stringify(data, null, 2);
+
+            // 绘制 PPI 网络可视化
+            renderPPINetwork(data);
+        }
+
+        function renderPPINetwork(data) {
+            if (!data.interactions || data.interactions.length === 0) {
+                document.getElementById('ppi_network_container').style.display = 'none';
+                return;
+            }
+
+            // 只取分数前 15 个画网络，太多会乱
+            const topInteractions = data.interactions
+                .filter(i => i.score > 0.6)
+                .slice(0, 15);
+
+            if (topInteractions.length === 0) {
+                document.getElementById('ppi_network_container').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('ppi_network_container').style.display = 'block';
+
+            // 构建图数据
+            const nodes = [];
+            const links = [];
+
+            // 加上查询蛋白作为中心节点
+            const centerName = data.query.normalized_gene_symbol || data.query.normalized_uniprot_id;
+            nodes.push({id: centerName, group: 1, score: 1.0});
+
+            topInteractions.forEach((interaction, idx) => {
+                nodes.push({
+                    id: interaction.partner,
+                    group: interaction.score > 0.8 ? 2 : 3,
+                    score: interaction.score
+                });
+                links.push({
+                    source: centerName,
+                    target: interaction.partner,
+                    value: interaction.score
+                });
+            });
+
+            // D3 force simulation
+            const width = document.getElementById('ppi_network').clientWidth;
+            const height = 400;
+
+            d3.select('#ppi_network').selectAll("*").remove();
+
+            const svg = d3.select('#ppi_network')
+                .attr('width', width)
+                .attr('height', height);
+
+            const g = svg.append('g');
+
+            const simulation = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink().links(links).distance(d => 100 / (d.value * 2)))
+                .force('charge', d3.forceManyBody().strength(-400))
+                .force('center', d3.forceCenter(width / 2, height / 2));
+
+            const link = g.append('g')
+                .selectAll('line')
+                .data(links)
+                .enter().append('line')
+                .attr('stroke', '#999')
+                .attr('stroke-opacity', 0.6)
+                .attr('stroke-width', d => Math.sqrt(d.value * 3));
+
+            const node = g.append('g')
+                .selectAll('circle')
+                .data(nodes)
+                .enter().append('circle')
+                .attr('r', d => d.group === 1 ? 15 : 8 + d.score * 10)
+                .attr('fill', d => {
+                    if (d.group === 1) return '#ff4444';
+                    if (d.group === 2) return '#00C851';
+                    return '#33b5e5';
+                })
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+
+            const labels = g.append('g')
+                .selectAll('text')
+                .data(nodes)
+                .enter().append('text')
+                .attr('font-size', d => d.group === 1 ? 12 : 10)
+                .attr('dx', 10)
+                .attr('dy', '.35em')
+                .text(d => d.id);
+
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                node
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+
+                labels
+                    .attr('x', d => d.x)
+                    .attr('y', d => d.y);
+            });
+
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
         }
 
         function copyJson() {
