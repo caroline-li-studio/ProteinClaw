@@ -464,15 +464,22 @@
             const centerName = data.query.normalized_gene_symbol || data.query.normalized_uniprot_id;
             nodes.push({id: centerName, group: 1, score: 1.0});
 
+            // 使用 nodeSet 去重
+            const nodeSet = new Set([centerName]);
+
             topInteractions.forEach((interaction, idx) => {
-                nodes.push({
-                    id: interaction.partner,
-                    group: interaction.score > 0.8 ? 2 : 3,
-                    score: interaction.score
-                });
+                const partnerId = interaction.partner;
+                if (!nodeSet.has(partnerId)) {
+                    nodeSet.add(partnerId);
+                    nodes.push({
+                        id: partnerId,
+                        group: interaction.score > 0.8 ? 2 : 3,
+                        score: interaction.score
+                    });
+                }
                 links.push({
                     source: centerName,
-                    target: interaction.partner,
+                    target: partnerId,
                     value: interaction.score
                 });
             });
@@ -490,7 +497,7 @@
             const g = svg.append('g');
 
             const simulation = d3.forceSimulation(nodes)
-                .force('link', d3.forceLink().links(links).distance(d => 100 / (d.value * 2)))
+                .force('link', d3.forceLink(links).id(d => d.id).distance(d => 100 / (d.value * 2)))
                 .force('charge', d3.forceManyBody().strength(-400))
                 .force('center', d3.forceCenter(width / 2, height / 2));
 
